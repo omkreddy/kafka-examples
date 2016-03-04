@@ -40,73 +40,52 @@ public class SimpleProducer<K extends Serializable, V extends Serializable> {
 
     public SimpleProducer(Properties producerConfig, boolean syncSend) {
         this.syncSend = syncSend;
-        this.producer = getProducer(producerConfig);
+        this.producer = new KafkaProducer<>(producerConfig);
         logger.info("Started Producer.  sync  : {}", syncSend);
     }
 
-    private KafkaProducer<byte[], byte[]> getProducer(Properties producerConfig) {
-        producerConfig.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, "org.apache.kafka.common.serialization.ByteArraySerializer");
-        producerConfig.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, "org.apache.kafka.common.serialization.ByteArraySerializer");
-        return new KafkaProducer<>(producerConfig);
-    }
-
     public void send(String topic, V v) {
-        send(topic, null, v, new DummyCallback());
+        send(topic, -1, null, v, new DummyCallback());
     }
 
     public void send(String topic, K k, V v) {
-        send(topic, k, v, new DummyCallback());
+        send(topic, -1, k, v, new DummyCallback());
     }
 
-    public void send(String topic, K k, V v, Callback callback) {
+    public void send(String topic, int partition, V v) {
+        send(topic, partition, null, v, new DummyCallback());
+    }
+
+    public void send(String topic, int partition, K k, V v) {
+        send(topic, partition, k, v, new DummyCallback());
+    }
+
+    public void send(String topic, int partition, K key, V value, Callback callback) {
         if (shutDown) {
             throw new RuntimeException("Producer is closed.");
         }
 
-        byte[] key, value;
-
         try {
-            key = serialize(k);
-        } catch (IOException e) {
-            logger.error("Error while serializing key", e);
-            return;
-        }
-
-        try {
-            value = serialize(v);
-        } catch (IOException e) {
-            logger.error("Error while serializing value", e);
-            return;
-        }
+            ProducerRecord record;
+            if(partition < 0)
+                record = new ProducerRecord<>(topic, key, value);
+            else
+                record = new ProducerRecord<>(topic,partition, key, value);
 
 
-        try {
-            Future<RecordMetadata> future = producer.send(new ProducerRecord<>(topic, key, value), callback);
+            Future<RecordMetadata> future = producer.send(record, callback);
             if (!syncSend) return;
             future.get();
         } catch (Exception e) {
-            logger.error("Error while producing event for topic : {}. Ignoring event = {}", topic, v, e);
+            logger.error("Error while producing event for topic : {}", topic, e);
         }
 
     }
 
-    private byte[] serialize(Serializable object) throws IOException {
-        if (object == null)
-            return null;
-        try (ByteArrayOutputStream bos = new ByteArrayOutputStream();
-             ObjectOutput out = new ObjectOutputStream(bos)) {
-            out.writeObject(object);
-            return bos.toByteArray();
-        } catch (Exception e) {
-            logger.error("Error while serializing object", e);
-        }
-        return null;
-    }
 
     public void close() {
         shutDown = true;
         try {
-            producer.flush();
             producer.close();
         } catch (Exception e) {
             logger.error("Exception occurred while stopping the producer", e);
