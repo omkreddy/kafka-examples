@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package kafka.examples.consumer.kryo;
+package kafka.examples.consumer;
 
 import net.sourceforge.argparse4j.ArgumentParsers;
 import net.sourceforge.argparse4j.inf.ArgumentParser;
@@ -33,7 +33,7 @@ import java.util.Properties;
 
 import static net.sourceforge.argparse4j.impl.Arguments.store;
 
-public class BasicConsumerExample {
+public class KryoConsumerExample {
 
     public static void main(String[] args) {
         ArgumentParser parser = argParser();
@@ -44,27 +44,27 @@ public class BasicConsumerExample {
             /* parse args */
             String brokerList = res.getString("bootstrap.servers");
             String topic = res.getString("topic");
-            String serializer = res.getString("serializer");
 
 
             Properties consumerConfig = new Properties();
             consumerConfig.put("group.id", "my-group");
-            consumerConfig.put("bootstrap.servers",brokerList);
-            consumerConfig.put("auto.offset.reset","earliest");
-            consumerConfig.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, "org.apache.kafka.common.serialization.ByteArrayDeserializer");
-            consumerConfig.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, "org.apache.kafka.common.serialization.ByteArrayDeserializer");
+            consumerConfig.put("bootstrap.servers", brokerList);
+            consumerConfig.put("auto.offset.reset", "earliest");
+            consumerConfig.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, "kafka.examples.kryo.serde.KryoDeserializer");
+            consumerConfig.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, "kafka.examples.kryo.serde.KryoDeserializer");
 
-            KafkaConsumer<byte[], byte[]> consumer = new KafkaConsumer<>(consumerConfig);
+            KafkaConsumer<String, Object> consumer = new KafkaConsumer<>(consumerConfig);
             consumer.subscribe(Collections.singletonList(topic));
 
             while (true) {
-                ConsumerRecords<byte[], byte[]> records = consumer.poll(1000);
-                for (ConsumerRecord<byte[], byte[]> record : records) {
-                    System.out.printf("Received Message offset = %d, key = %s, value = %s\n", record.offset(), deserialize(record.key()), deserialize(record.value()));
+                ConsumerRecords<String, Object> records = consumer.poll(1000);
+                for (ConsumerRecord<String, Object> record : records) {
+                    System.out.printf("Received Message offset = %d, key = %s, value = %s\n", record.offset(), record.key(), record.value());
                 }
 
                 consumer.commitSync();
             }
+
 
         } catch (ArgumentParserException e) {
             if (args.length == 0) {
@@ -78,9 +78,6 @@ public class BasicConsumerExample {
 
     }
 
-    private static <V> V deserialize(final byte[] objectData) {
-        return (V) org.apache.commons.lang3.SerializationUtils.deserialize(objectData);
-    }
 
     /**
      * Get the command-line argument parser.
@@ -103,13 +100,6 @@ public class BasicConsumerExample {
                 .metavar("TOPIC")
                 .help("produce messages to this topic");
 
-        parser.addArgument("--serializer").action(store())
-                .required(false)
-                .setDefault("byte")
-                .type(String.class)
-                .choices(Arrays.asList("byte", "kryo"))
-                .metavar("BYTE/KRYO")
-                .help("use byte array or kryo serializer");
 
         return parser;
     }
