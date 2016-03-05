@@ -14,11 +14,20 @@ $ sh zookeeper-server-start.sh ../config/zookeeper.properties
 # start kafka
 $ sh kafka-server-start.sh  ../config/server.properties
 ```
+####Build
+
+```shell
+# checkout kafka-examples repo
+$ cd kafka-examples/producer/
+$ mvn clean package
+```
 
 ####Basic Producer Example
 This example is to demonstrate kafka producer functionality.
 
- bin/runProducer.sh can be used produce string messages (or) test events (MyEvent.java). 
+Main Classes: SimpleProducer.java, BasicProducerExample.java, BasicConsumerExample.java, MyEvent.java                       
+
+ **bin/runProducer.sh** script can be used produce string messages (or) test events (MyEvent.java). 
  
  To generate 100 string messages
 
@@ -32,17 +41,43 @@ This example is to demonstrate kafka producer functionality.
 # ./bin/runProducer.sh --bootstrap.servers localhost:9092 --topic my-event-topic  --messages 100 --delay 1000 --messagetype myevent
 ```
 
-Then run the Kafka console consumer script (or) bin/runConsumer.sh script to read the published messages.
+Then run the Kafka console consumer script (or) **bin/runConsumer.sh** script to read the published messages.
 
 ```shell
 #. /bin/runConsumer.sh --bootstrap.servers localhost:9092 --topic my-topic
 # ./bin/runConsumer.sh --bootstrap.servers localhost:9092 --topic my-event-topic
 ```
 
+####Custom Serialization Examples
+Kafka Producer and Consumers allows applications to pass Custom Serializer and Deserializer implementations.
+key.serializer, value.serializer config properties are used to pass custom serializer for Producer.
+key.deserializer, value.deserializer config properties are used to pass custom deserializer for Consumer.
 
-
-####Custom Serialization Example
 ##### Kryo Serializer
+This examples shows serailization using [Kryo Serialization Framework](https://github.com/EsotericSoftware/kryo)
+
+Main Classes: KryoSerializer.java, KryoDeserializer.java, KryoUtils.java, KryoProducerExample.java, KryoConsumerExample.java
+
+ **bin/runKryoProducer.sh** script can be used produce string messages (or) test events (MyEvent.java). 
+ 
+ To generate 100 string messages
+
+ ```shell
+ # ./bin/runKryoProducer.sh --bootstrap.servers localhost:9092 --topic my-topic  --messages 100 --delay 1000 
+ ```
+
+ To generate 100 MyEvent messages
+
+```shell
+# ./bin/runKryoProducer.sh --bootstrap.servers localhost:9092 --topic my-event-topic  --messages 100 --delay 1000 --messagetype myevent
+```
+
+Then run **bin/runKryoConsumer.sh** script to print the published messages.
+
+```shell
+#. /bin/runConsumer.sh --bootstrap.servers localhost:9092 --topic my-topic
+# ./bin/runConsumer.sh --bootstrap.servers localhost:9092 --topic my-event-topic
+```
 
 
 
