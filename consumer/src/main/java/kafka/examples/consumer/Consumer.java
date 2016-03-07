@@ -10,15 +10,15 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Properties;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
-
-import com.google.common.base.Preconditions;
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import org.apache.commons.lang3.SerializationUtils;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
@@ -29,39 +29,36 @@ import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.serialization.Deserializer;
-import org.apache.kafka.common.serialization.Serializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class Consumer<K extends Serializable, V extends Serializable> implements Runnable {
 
 	private static final Logger logger = LoggerFactory.getLogger(Consumer.class);
-
 	private final String groupId;
 	private final String clientId;
-	private String partitionAssignorStrategy;
 	
 	private List<String> topics;
-	private KafkaConsumer<K, V> consumer;
 	private AtomicBoolean closed = new AtomicBoolean();
+	private CountDownLatch shutdownLatch = new CountDownLatch(1);
 	
 	public Consumer(String groupId, String clientId, List<String> topics) {
-		
-		Preconditions.checkArgument(groupId != null && !groupId.isEmpty(), "GroupId cannot be null / empty");
-		Preconditions.checkArgument(clientId != null && !clientId.isEmpty(), "ClientId cannot not be null / empty");
-		Preconditions.checkArgument(topics != null && !topics.isEmpty(), "Topics cannot be  null / empty"); 
+
+		if(groupId == null || groupId.isEmpty())
+			throw new IllegalArgumentException("GroupId cannot be null / empty");
+
+		if(clientId == null || clientId.isEmpty())
+			throw new IllegalArgumentException("ClientId cannot not be null / empty");
+
+		if(topics == null || topics.isEmpty())
+			throw new IllegalArgumentException("Topics cannot be  null / empty"); 
 
 		this.groupId = groupId;
 		this.clientId = clientId;
 		this.topics = topics;
 	}
 	
-	public void setPartitionAssignorStrategy(String partitionAssignorClassName) {
-		partitionAssignorStrategy = partitionAssignorClassName;
-	}
-	
 	private Properties getConsumerProperties() {
-
 		Properties props = new Properties();
 		props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, "127.0.0.1:9092");
 		props.put(ConsumerConfig.GROUP_ID_CONFIG, groupId);
@@ -71,39 +68,35 @@ public class Consumer<K extends Serializable, V extends Serializable> implements
 		props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, "org.apache.kafka.common.serialization.ByteArrayDeserializer");
 		props.put(ConsumerConfig.MAX_PARTITION_FETCH_BYTES_CONFIG, 3000);
 		props.put(ConsumerConfig.CLIENT_ID_CONFIG, clientId);
-
-		if(partitionAssignorStrategy != null)
-			props.put(ConsumerConfig.PARTITION_ASSIGNMENT_STRATEGY_CONFIG, partitionAssignorStrategy);
-
 		return props;
 	}
 	
-	private void sleep(long sleepMs) {
-        try {
-            Thread.sleep(sleepMs);
-        } catch (InterruptedException e) {
-        	logger.error("Exception while sleeping ", e);
-        }
-    }
+	private void sleep(long millis) {
+		try {
+			Thread.sleep(millis);
+		} catch (InterruptedException e) {
+			logger.error("C : {}, Error", e);
+		}
+	}
 	
 	@Override
 	public void run() {
 	
 		logger.info("Starting consumer : {}", clientId);
 		Properties configs = getConsumerProperties();
-		consumer = new KafkaConsumer<>(configs, new CustomSerDeserializer<K>(), new CustomSerDeserializer<V>());
+		final KafkaConsumer<K, V> consumer = new KafkaConsumer<>(configs, new CustomDeserializer<K>(), new CustomDeserializer<V>());
 		
-		ExecutorService executor = Executors.newSingleThreadExecutor(new ThreadFactoryBuilder()
-					.setNameFormat("Dispatcher-" + clientId).build());
-		final AtomicBoolean canConsume = new AtomicBoolean(true);
+		ExecutorService executor = Executors.newSingleThreadExecutor(new CustomFactory("Dispatcher-" + clientId));
+		final Map<TopicPartition, Long> partitionToUncommittedOffsetMap = new ConcurrentHashMap<>();
+		final AtomicBoolean canRevoke = new AtomicBoolean(false);
 		
 		ConsumerRebalanceListener listener = new ConsumerRebalanceListener() {
 
 			@Override
 			public void onPartitionsRevoked(Collection<TopicPartition> partitions) {
-				if(!partitions.isEmpty()) // First time, there won't be any partitions to revoke
-					canConsume.compareAndSet(true, false);
+				canRevoke.compareAndSet(false, true);
 				logger.info("C : {}, Revoked topicPartitions : {}", clientId, partitions);
+				commitOffsets(consumer, partitionToUncommittedOffsetMap);
 			}
 
 			@Override
@@ -132,46 +125,56 @@ public class Consumer<K extends Serializable, V extends Serializable> implements
 				continue;
 			}
 			
-			logger.info("C: {}, Number of records received : {}", clientId, records.count());
-			
 			/**
 			 * After receiving the records, pause all the partitions and do heart-beat manually
 			 * to avoid the consumer instance gets kicked-out from the group by the consumer coordinator
 			 * due to the delay in the processing of messages
 			 */
 			consumer.pause(consumer.assignment().toArray(new TopicPartition[0]));
-			Future<Boolean> future = executor.submit(new ConsumeRecords(records));
+			Future<Boolean> future = executor.submit(new ConsumeRecords(records, partitionToUncommittedOffsetMap));
 			
 			Boolean isCompleted = false;
-			while(!isCompleted) {
+			int counter = 0;
+			while(!isCompleted && !closed.get()) {
 				try	{
 					isCompleted = future.get(3, TimeUnit.SECONDS); // wait up-to heart-beat interval
 				} catch (TimeoutException e) {
-					if(!canConsume.get() || closed.get()) {
-						future.cancel(true);
-						canConsume.compareAndSet(false, true);
-						break;
+					
+					if(canRevoke.get()) {
+						canRevoke.set(false);
+						if(counter > 0) { 
+							future.cancel(true);
+							break;
+						}
 					}
-
-					logger.info("C : {}, heartbeats the coordinator", clientId);
+					
+					logger.debug("C : {}, heartbeats the coordinator", clientId);
 					consumer.poll(0); // does heart-beat
+					counter++;
 				} catch (Exception e) {
-					logger.error("Error while consuming records", e);
+					logger.error("C : {}, Error while consuming records", clientId, e);
 					break;
 				}
 			}
 			consumer.resume(consumer.assignment().toArray(new TopicPartition[0]));
+			commitOffsets(consumer, partitionToUncommittedOffsetMap);
 		}
-		executor.shutdown();
+		
+		try {
+			executor.shutdownNow();
+			while(!executor.awaitTermination(5, TimeUnit.SECONDS));
+		} catch (InterruptedException e) {
+			logger.error("C : {}, Error while exiting the consumer", clientId, e);
+		}
 		consumer.close();
+		shutdownLatch.countDown();
 		logger.info("C : {}, consumer exited", clientId);
 	}
 
-	private void commitOffsets(Map<TopicPartition, Long> partitionToOffsetMap) {
+	private void commitOffsets(KafkaConsumer<K, V> consumer, Map<TopicPartition, Long> partitionToOffsetMap) {
 
 		if(!partitionToOffsetMap.isEmpty()) {
 			Map<TopicPartition, OffsetAndMetadata> partitionToMetadataMap = new HashMap<>();
-			
 			for(Entry<TopicPartition, Long> e : partitionToOffsetMap.entrySet()) {
 				partitionToMetadataMap.put(e.getKey(), new OffsetAndMetadata(e.getValue() + 1));
 			}
@@ -183,80 +186,88 @@ public class Consumer<K extends Serializable, V extends Serializable> implements
 	}
 
 	public void close() {
-		closed.compareAndSet(false, true);
+		try {
+			closed.set(true);
+			shutdownLatch.await();
+		} catch (InterruptedException e) {
+			logger.error("Error", e);
+		}
 	}
 	
 	private class ConsumeRecords implements Callable<Boolean> {
 		
 		ConsumerRecords<K, V> records;
+		Map<TopicPartition, Long> partitionToUncommittedOffsetMap;
 		
-		public ConsumeRecords(ConsumerRecords<K, V> records) {
+		public ConsumeRecords(ConsumerRecords<K, V> records, Map<TopicPartition, Long> partitionToUncommittedOffsetMap) {
 			this.records = records;
+			this.partitionToUncommittedOffsetMap = partitionToUncommittedOffsetMap;
 		}
 		
 		@Override
 		public Boolean call() {
 
-			Map<TopicPartition, Long> partitionToUncommittedOffsetMap = new HashMap<>();
+			logger.info("C: {}, Number of records received : {}", clientId, records.count());
 			try {
-				for (TopicPartition tp : records.partitions()) {
-					for (ConsumerRecord<K, V> record : records.records(tp)) {
-						
-						logger.info("C : {}, Record received topicPartition : {} offset : {}", clientId, tp, record.offset());
-						partitionToUncommittedOffsetMap.put(tp, record.offset());
-						Thread.sleep(1000); // Adds more processing time for a record
-					}
-					commitOffsets(partitionToUncommittedOffsetMap); // Commits offset once a partition data is consumed
+				for(ConsumerRecord<K, V> record : records) {
+					TopicPartition tp = new TopicPartition(record.topic(), record.partition());
+					logger.info("C : {}, Record received topicPartition : {} offset : {}", clientId, tp, record.offset());
+					partitionToUncommittedOffsetMap.put(tp, record.offset());
+					Thread.sleep(100); // Adds more processing time for a record
 				}
 			} catch (InterruptedException e) {
-				logger.info("C : {}, On revoke committing the offsets : {}", clientId, partitionToUncommittedOffsetMap);
-				commitOffsets(partitionToUncommittedOffsetMap);
+				logger.info("C : {}, Record consumption interrupted!", clientId);
+			} catch (Exception e) {
+				logger.error("Error while consuming", e);
 			}
 			return true;
 		}
 	}
 	
-	private class CustomSerDeserializer<T extends Serializable> implements Serializer<T>, Deserializer<T> {
+	private static class CustomDeserializer<T extends Serializable> implements Deserializer<T> {
 		
 		@Override
 		public void configure(Map<String, ?> configs, boolean isKey) {
 		}
 
+		@SuppressWarnings("unchecked")
 		@Override
-		public T deserialize(String topic, byte[] data) {
-			if(data == null)
-				return null;
-			
-			return SerializationUtils.deserialize(data);
-		}
-
-		@Override
-		public byte[] serialize(String topic, T data) {
-			if(data == null)
-				return null;
-			
-			return SerializationUtils.serialize(data);
+		public T deserialize(String topic, byte[] objectData) {
+			return (objectData == null) ? null : (T) SerializationUtils.deserialize(objectData);
 		}
 
 		@Override
 		public void close() {
-			
+		}
+	}
+	
+	private static class CustomFactory implements ThreadFactory {
+
+		private String threadPrefix;
+		private int counter = 0;
+		
+		public CustomFactory(String threadPrefix) {
+			this.threadPrefix = threadPrefix;
+		}
+		
+		@Override
+		public Thread newThread(Runnable r) {
+			return new Thread(r, threadPrefix + "-" + counter++);
 		}
 	}
 	
 	public static void main(String[] args) throws InterruptedException {
 		
 		List<Consumer<String, Integer>> consumers = new ArrayList<>();
-		
-		for(int i=0; i<3; i++) {
+		for (int i=0; i<3; i++) {
 			String clientId = "Worker" + i;
-			Consumer<String, Integer> consumer = new Consumer<>("test-group", clientId, Arrays.asList("test4"));
+			Consumer<String, Integer> consumer = new Consumer<>("consumer-group", clientId, Arrays.asList("test"));
 			consumers.add(consumer);
 		}
 		
 		ExecutorService executor = Executors.newFixedThreadPool(consumers.size());
 		
-		// New consumer added to the group every one minute
+		// New consumer added to the group every 30 secs
 		for (Consumer<String, Integer> consumer : consumers) {
 			executor.execute(consumer);
 			Thread.sleep(TimeUnit.SECONDS.toMillis(30)); // let the consumer run for half-a-minute
@@ -266,8 +277,8 @@ public class Consumer<K extends Serializable, V extends Serializable> implements
 
 		// Close the consumer one by one
 		for (Consumer<String, Integer> consumer : consumers) {
-			consumer.close();
 			Thread.sleep(TimeUnit.SECONDS.toMillis(30));
+			consumer.close();
 		}
 		
 		executor.shutdown();
