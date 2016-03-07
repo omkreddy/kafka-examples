@@ -17,8 +17,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import jersey.repackaged.com.google.common.base.Preconditions;
-import jersey.repackaged.com.google.common.util.concurrent.ThreadFactoryBuilder;
+import com.google.common.base.Preconditions;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import org.apache.commons.lang3.SerializationUtils;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
