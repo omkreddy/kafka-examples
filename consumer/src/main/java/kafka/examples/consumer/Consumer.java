@@ -10,8 +10,10 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Properties;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -66,7 +68,7 @@ public class Consumer<K extends Serializable, V extends Serializable> implements
 		props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
 		props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, "org.apache.kafka.common.serialization.ByteArrayDeserializer");
 		props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, "org.apache.kafka.common.serialization.ByteArrayDeserializer");
-		props.put(ConsumerConfig.MAX_PARTITION_FETCH_BYTES_CONFIG, 3000);
+		props.put(ConsumerConfig.MAX_PARTITION_FETCH_BYTES_CONFIG, 30000);
 		props.put(ConsumerConfig.CLIENT_ID_CONFIG, clientId);
 		return props;
 	}
@@ -88,13 +90,15 @@ public class Consumer<K extends Serializable, V extends Serializable> implements
 		
 		ExecutorService executor = Executors.newSingleThreadExecutor(new CustomFactory("Dispatcher-" + clientId));
 		final Map<TopicPartition, Long> partitionToUncommittedOffsetMap = new ConcurrentHashMap<>();
-		final AtomicBoolean canRevoke = new AtomicBoolean(false);
+		final List<Future<Boolean>> futures = new ArrayList<>();
 		
 		ConsumerRebalanceListener listener = new ConsumerRebalanceListener() {
 
 			@Override
 			public void onPartitionsRevoked(Collection<TopicPartition> partitions) {
-				canRevoke.compareAndSet(false, true);
+				if(!futures.isEmpty())
+					futures.get(0).cancel(true);
+				
 				logger.info("C : {}, Revoked topicPartitions : {}", clientId, partitions);
 				commitOffsets(consumer, partitionToUncommittedOffsetMap);
 			}
@@ -132,30 +136,25 @@ public class Consumer<K extends Serializable, V extends Serializable> implements
 			 */
 			consumer.pause(consumer.assignment().toArray(new TopicPartition[0]));
 			Future<Boolean> future = executor.submit(new ConsumeRecords(records, partitionToUncommittedOffsetMap));
+			futures.add(future);
 			
 			Boolean isCompleted = false;
-			int counter = 0;
 			while(!isCompleted && !closed.get()) {
 				try	{
 					isCompleted = future.get(3, TimeUnit.SECONDS); // wait up-to heart-beat interval
 				} catch (TimeoutException e) {
-					
-					if(canRevoke.get()) {
-						canRevoke.set(false);
-						if(counter > 0) { 
-							future.cancel(true);
-							break;
-						}
-					}
-					
 					logger.debug("C : {}, heartbeats the coordinator", clientId);
 					consumer.poll(0); // does heart-beat
-					counter++;
-				} catch (Exception e) {
+					// commitOffsets(consumer, partitionToUncommittedOffsetMap); // If required, commit offsets here periodically
+				} catch (CancellationException e) {
+					logger.debug("C : {}, ConsumeRecords Job got cancelled", clientId);
+					break;
+				} catch (ExecutionException | InterruptedException e) {
 					logger.error("C : {}, Error while consuming records", clientId, e);
 					break;
 				}
 			}
+			futures.remove(future);
 			consumer.resume(consumer.assignment().toArray(new TopicPartition[0]));
 			commitOffsets(consumer, partitionToUncommittedOffsetMap);
 		}
