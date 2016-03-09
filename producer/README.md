@@ -70,8 +70,8 @@ To produce 100 MyEvent messages
 Then run **bin/runKryoConsumer.sh** script to print the published messages.
 
 ```shell
-#. /bin/runConsumer.sh --bootstrap.servers localhost:9092 --topic my-topic
-# ./bin/runConsumer.sh --bootstrap.servers localhost:9092 --topic my-event-topic
+#. /bin/runKryoConsumer.sh --bootstrap.servers localhost:9092 --topic my-topic
+# ./bin/runKryoConsumer.sh --bootstrap.servers localhost:9092 --topic my-event-topic
 ```
 ####Custom Partitioning: 
 
