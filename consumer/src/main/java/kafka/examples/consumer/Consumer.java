@@ -1,5 +1,7 @@
 package kafka.examples.consumer;
 
+import static net.sourceforge.argparse4j.impl.Arguments.store;
+
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -22,6 +24,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import net.sourceforge.argparse4j.ArgumentParsers;
+import net.sourceforge.argparse4j.inf.ArgumentParser;
+import net.sourceforge.argparse4j.inf.ArgumentParserException;
+import net.sourceforge.argparse4j.inf.Namespace;
+
 import org.apache.commons.lang3.SerializationUtils;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRebalanceListener;
@@ -37,40 +44,20 @@ import org.slf4j.LoggerFactory;
 public class Consumer<K extends Serializable, V extends Serializable> implements Runnable {
 
 	private static final Logger logger = LoggerFactory.getLogger(Consumer.class);
-	private final String groupId;
-	private final String clientId;
 	
+	private KafkaConsumer<K, V> consumer;
+	private final String clientId;
 	private List<String> topics;
+	
 	private AtomicBoolean closed = new AtomicBoolean();
 	private CountDownLatch shutdownLatch = new CountDownLatch(1);
 	
-	public Consumer(String groupId, String clientId, List<String> topics) {
+	public Consumer(Properties configs, String clientId, List<String> topics) {
 
-		if(groupId == null || groupId.isEmpty())
-			throw new IllegalArgumentException("GroupId cannot be null / empty");
-
-		if(clientId == null || clientId.isEmpty())
-			throw new IllegalArgumentException("ClientId cannot not be null / empty");
-
-		if(topics == null || topics.isEmpty())
-			throw new IllegalArgumentException("Topics cannot be  null / empty"); 
-
-		this.groupId = groupId;
 		this.clientId = clientId;
 		this.topics = topics;
-	}
-	
-	private Properties getConsumerProperties() {
-		Properties props = new Properties();
-		props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, "127.0.0.1:9092");
-		props.put(ConsumerConfig.GROUP_ID_CONFIG, groupId);
-		props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "false");
-		props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
-		props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, "org.apache.kafka.common.serialization.ByteArrayDeserializer");
-		props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, "org.apache.kafka.common.serialization.ByteArrayDeserializer");
-		props.put(ConsumerConfig.MAX_PARTITION_FETCH_BYTES_CONFIG, 30000);
-		props.put(ConsumerConfig.CLIENT_ID_CONFIG, clientId);
-		return props;
+		configs.put(ConsumerConfig.CLIENT_ID_CONFIG, clientId);
+		this.consumer = new KafkaConsumer<>(configs, new CustomDeserializer<K>(), new CustomDeserializer<V>());
 	}
 	
 	private void sleep(long millis) {
@@ -85,10 +72,8 @@ public class Consumer<K extends Serializable, V extends Serializable> implements
 	public void run() {
 	
 		logger.info("Starting consumer : {}", clientId);
-		Properties configs = getConsumerProperties();
-		final KafkaConsumer<K, V> consumer = new KafkaConsumer<>(configs, new CustomDeserializer<K>(), new CustomDeserializer<V>());
-		
-		ExecutorService executor = Executors.newSingleThreadExecutor(new CustomFactory("Dispatcher-" + clientId));
+
+		ExecutorService executor = Executors.newSingleThreadExecutor(new CustomFactory(clientId + "_Processor"));
 		final Map<TopicPartition, Long> partitionToUncommittedOffsetMap = new ConcurrentHashMap<>();
 		final List<Future<Boolean>> futures = new ArrayList<>();
 		
@@ -100,7 +85,7 @@ public class Consumer<K extends Serializable, V extends Serializable> implements
 					futures.get(0).cancel(true);
 				
 				logger.info("C : {}, Revoked topicPartitions : {}", clientId, partitions);
-				commitOffsets(consumer, partitionToUncommittedOffsetMap);
+				commitOffsets(partitionToUncommittedOffsetMap);
 			}
 
 			@Override
@@ -145,7 +130,7 @@ public class Consumer<K extends Serializable, V extends Serializable> implements
 				} catch (TimeoutException e) {
 					logger.debug("C : {}, heartbeats the coordinator", clientId);
 					consumer.poll(0); // does heart-beat
-					// commitOffsets(consumer, partitionToUncommittedOffsetMap); // If required, commit offsets here periodically
+					commitOffsets(partitionToUncommittedOffsetMap); 
 				} catch (CancellationException e) {
 					logger.debug("C : {}, ConsumeRecords Job got cancelled", clientId);
 					break;
@@ -156,7 +141,7 @@ public class Consumer<K extends Serializable, V extends Serializable> implements
 			}
 			futures.remove(future);
 			consumer.resume(consumer.assignment().toArray(new TopicPartition[0]));
-			commitOffsets(consumer, partitionToUncommittedOffsetMap);
+			commitOffsets(partitionToUncommittedOffsetMap);
 		}
 		
 		try {
@@ -170,7 +155,7 @@ public class Consumer<K extends Serializable, V extends Serializable> implements
 		logger.info("C : {}, consumer exited", clientId);
 	}
 
-	private void commitOffsets(KafkaConsumer<K, V> consumer, Map<TopicPartition, Long> partitionToOffsetMap) {
+	private void commitOffsets(Map<TopicPartition, Long> partitionToOffsetMap) {
 
 		if(!partitionToOffsetMap.isEmpty()) {
 			Map<TopicPartition, OffsetAndMetadata> partitionToMetadataMap = new HashMap<>();
@@ -257,33 +242,101 @@ public class Consumer<K extends Serializable, V extends Serializable> implements
 	
 	public static void main(String[] args) throws InterruptedException {
 		
+		ArgumentParser parser = argParser();
 		List<Consumer<String, Integer>> consumers = new ArrayList<>();
-		for (int i=0; i<3; i++) {
-			String clientId = "Worker" + i;
-			Consumer<String, Integer> consumer = new Consumer<>("consumer-group", clientId, Arrays.asList("test"));
-			consumers.add(consumer);
-		}
 		
-		ExecutorService executor = Executors.newFixedThreadPool(consumers.size());
-		
-		// New consumer added to the group every 30 secs
-		for (Consumer<String, Integer> consumer : consumers) {
-			executor.execute(consumer);
-			Thread.sleep(TimeUnit.SECONDS.toMillis(30)); // let the consumer run for half-a-minute
-		}
-		
-		Thread.sleep(TimeUnit.SECONDS.toMillis(60)); // let all the consumers run for few minutes
+		try {
+			Namespace result = parser.parseArgs(args);
 
-		// Close the consumer one by one
-		for (Consumer<String, Integer> consumer : consumers) {
-			Thread.sleep(TimeUnit.SECONDS.toMillis(30));
-			consumer.close();
+			int numConsumer = result.getInt("numConsumer");
+			List<String> topics = Arrays.asList(result.getString("topics").split(","));
+			Properties configs = getConsumerConfigs(result);
+			
+			ExecutorService executor = Executors.newFixedThreadPool(numConsumer);
+
+			// Start consumers one by one after 20 seconds
+			for (int i=0; i<numConsumer; i++) {
+				Consumer<String, Integer> consumer = new Consumer<String, Integer>(configs, "Worker" + i, topics);
+				consumers.add(consumer);
+				executor.submit(consumer);
+				Thread.sleep(TimeUnit.SECONDS.toMillis(20));
+			}
+			
+			Thread.sleep(TimeUnit.SECONDS.toMillis(60)); // let all the consumers run for a minute
+			
+			// Stop consumers one by one after 20 seconds
+			for (Consumer<String, Integer> consumer : consumers) {
+				Thread.sleep(TimeUnit.SECONDS.toMillis(20));
+				consumer.close();
+			}
+			
+			executor.shutdown();
+			while(!executor.awaitTermination(5, TimeUnit.SECONDS));
+			logger.info("Exiting the application");
+			
+		} catch (ArgumentParserException e) {
+			if(args.length == 0)
+				parser.printHelp();
+			else 
+				parser.handleError(e);
+			System.exit(0);
 		}
-		
-		executor.shutdown();
-		while(!executor.awaitTermination(5, TimeUnit.SECONDS));
-		logger.info("Exiting the application");
 	}
+	
+	private static Properties getConsumerConfigs(Namespace result) {
+		Properties configs = new Properties();
+		configs.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, result.getString("bootstrap.servers"));
+		configs.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "false");
+		configs.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, result.getString("auto.offset.reset"));
+		configs.put(ConsumerConfig.GROUP_ID_CONFIG, result.getString("groupId"));
+		configs.put(ConsumerConfig.MAX_PARTITION_FETCH_BYTES_CONFIG, result.getString("max.partition.fetch.bytes"));
+		return configs;
+	}
+	
+	/**
+     * Get the command-line argument parser.
+     */
+    private static ArgumentParser argParser() {
+        ArgumentParser parser = ArgumentParsers
+                .newArgumentParser("consumer-rebalancer")
+                .defaultHelp(true)
+                .description("This example demonstrates kafka consumer auto-rebalance capabilities");
+
+        parser.addArgument("--bootstrap.servers").action(store())
+                .required(true)
+                .type(String.class)
+                .help("comma separated broker list");
+
+        parser.addArgument("--topics").action(store())
+                .required(true)
+                .type(String.class)
+                .help("consume messages from topics. Comma separated list e.g. t1,t2");
+
+        parser.addArgument("--groupId").action(store())
+        		.required(true)
+        		.type(String.class)
+        		.help("Group identifier");
+        
+        parser.addArgument("--numConsumer").action(store())
+        		.required(true)
+        		.type(Integer.class)
+        		.help("Number of consumer instances in the group");
+        
+        parser.addArgument("--auto.offset.reset").action(store())
+        		.required(false)
+        		.setDefault("earliest")
+        		.type(String.class)
+        		.choices("earliest", "latest")
+        		.help("What to do when there is no initial offset in Kafka");
+        
+        parser.addArgument("--max.partition.fetch.bytes").action(store())
+        		.required(false)
+        		.setDefault("3000")
+        		.type(String.class)
+        		.help("The maximum amount of data per-partition the server will return");
+        
+        return parser;
+    }
 }
 
 
