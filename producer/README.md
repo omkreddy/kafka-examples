@@ -1,6 +1,5 @@
 ###Apache Kafka Producer
-This project includes New Java Kafka producer examples.
-
+This project includes New Java Kafka producer examples.  
 Read [Javadocs](https://kafka.apache.org/090/javadoc/index.html?org/apache/kafka/clients/producer/KafkaProducer.html) for implementation details. Configuaration details are [here](http://kafka.apache.org/documentation.html#producerconfigs). Confluent's documentaion is 
 [here](http://docs.confluent.io/2.0.1/clients/producer.html).
 
@@ -14,7 +13,7 @@ $ sh zookeeper-server-start.sh ../config/zookeeper.properties
 # start kafka
 $ sh kafka-server-start.sh  ../config/server.properties
 ```
-####Build
+####Build Examples
 
 ```shell
 # checkout kafka-examples repo
@@ -50,8 +49,8 @@ Then run the Kafka console consumer script (or) **bin/runConsumer.sh** script to
 
 ####Custom Serialization Examples
 Kafka Producer and Consumers allows applications to pass Custom Serializer and Deserializer implementations.
-key.serializer, value.serializer config properties are used to pass custom serializer for Producer.
-key.deserializer, value.deserializer config properties are used to pass custom deserializer for Consumer.
+**key.serializer**, **value.serializer** config properties are used to pass custom serializer for Producer.  
+**key.deserializer**, **value.deserializer** config properties are used to pass custom deserializer for Consumer.
 
 ##### Kryo Serializer
 This examples shows serailization using [Kryo Serialization Framework](https://github.com/EsotericSoftware/kryo)
@@ -78,7 +77,61 @@ Then run **bin/runKryoConsumer.sh** script to print the published messages.
 #. /bin/runConsumer.sh --bootstrap.servers localhost:9092 --topic my-topic
 # ./bin/runConsumer.sh --bootstrap.servers localhost:9092 --topic my-event-topic
 ```
+####Custom Partitioning: 
 
+By default kafka producer uses DefaultPartitioner to distribute the records to available partitions.
+If a key is present, a partition will be chosen using a hash of the key, else a partition will be
+assigned in a round-robin fashion. But, Many times applications want to distribute the records
+based on their partition design. Available options for custom partitioning are
+
+**Option 1**: Pass optional partition number, while producing the records, using [ProducerRecord](https://kafka.apache.org/090/javadoc/org/apache/kafka/clients/producer/ProducerRecord.html) class.
+
+Main Classes: BasicPartitionExample.java, SimpleProducer.java
+
+This examples distributes the event numbered records to Partition 0 and odd numbered records to Partition 1.
+
+crate a topic with two partitions
+
+ ```shell
+# cd kafkaHome/bin
+#sh kafka-topics.sh --create --zookeeper localhost:2181 --replication-factor 1  --partitions 1 --topic test-partition
+ ```
+
+run producer with basic partitioning
+
+ ```shell
+#./bin/runBasicPartitioner.sh --bootstrap.servers localhost:9092 --topic test-partition --messages 100 --delay 1000 
+ ```
+
+Then run the Kafka console consumer script (or) **bin/runConsumer.sh** script to read the published messages.
+
+```shell
+#. /bin/runConsumer.sh --bootstrap.servers localhost:9092 --topic test-partition
+
+```
+
+
+**Option 2**: Use "**partitioner.class**" config property to pass custom Partitioner class that implements the [Partitioner](https://kafka.apache.org/090/javadoc/org/apache/kafka/clients/producer/Partitioner.html) interface.
+
+Main Classes: CustomPartitioner.java, CustomPartitionerExample.java, SimpleProducer.java
+
+This examples used CustomPartitioner to distribute the event numbered records to Partition 0 and odd numbered records to Partition 1.
+
+This examples distributes the event numbered records to Partition 0 and odd numbered records to Partition 1.
+
+run producer with custom partitioner
+
+```shell
+#./bin/runCustomPartitioner.sh --bootstrap.servers localhost:9092 --topic test-partition --messages 100 --delay 1000 
+```
+
+Then run the Kafka console consumer script (or) **bin/runConsumer.sh** script to read the published messages.
+
+```shell
+#. /bin/runConsumer.sh --bootstrap.servers localhost:9092 --topic test-partition
+```
+
+Change logger level for enable debug logs : src/main/resources/log4j.properties
 
 
 
