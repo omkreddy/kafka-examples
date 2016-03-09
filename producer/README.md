@@ -9,7 +9,6 @@ Before running the below examples, make sure that Zookeeper and Kafka are runnin
 ```shell
 # start zookeeper
 $ sh zookeeper-server-start.sh ../config/zookeeper.properties
-
 # start kafka
 $ sh kafka-server-start.sh  ../config/server.properties
 ```
@@ -24,17 +23,15 @@ $ mvn clean package
 ####Basic Producer Example
 This example is to demonstrate kafka producer functionality.
 
-Main Classes: SimpleProducer.java, BasicProducerExample.java, BasicConsumerExample.java, MyEvent.java                       
-
- **bin/runProducer.sh** script can be used produce string messages (or) test events (MyEvent.java). 
+**Example Classes:** SimpleProducer.java, BasicProducerExample.java, BasicConsumerExample.java, MyEvent.java              **bin/runProducer.sh** script can be used produce string messages (or) test events (MyEvent.java). 
  
- To generate 100 string messages
+ To produce 100 string messages
 
  ```shell
  # ./bin/runProducer.sh --bootstrap.servers localhost:9092 --topic my-topic  --messages 100 --delay 1000 
  ```
 
- To generate 100 MyEvent messages
+ To produce 100 MyEvent messages
 
 ```shell
 # ./bin/runProducer.sh --bootstrap.servers localhost:9092 --topic my-event-topic  --messages 100 --delay 1000 --messagetype myevent
@@ -55,17 +52,16 @@ Kafka Producer and Consumers allows applications to pass Custom Serializer and D
 ##### Kryo Serializer
 This examples shows serailization using [Kryo Serialization Framework](https://github.com/EsotericSoftware/kryo)
 
-Main Classes: KryoSerializer.java, KryoDeserializer.java, KryoUtils.java, KryoProducerExample.java, KryoConsumerExample.java
-
- **bin/runKryoProducer.sh** script can be used produce string messages (or) test events (MyEvent.java). 
+**Example Classes:** KryoSerializer.java, KryoDeserializer.java, KryoUtils.java, KryoProducerExample.java, KryoConsumerExample.java  
+**bin/runKryoProducer.sh** script can be used produce string messages (or) test events (MyEvent.java). 
  
- To generate 100 string messages
+ To produce 100 string messages
 
  ```shell
  # ./bin/runKryoProducer.sh --bootstrap.servers localhost:9092 --topic my-topic  --messages 100 --delay 1000 
  ```
 
- To generate 100 MyEvent messages
+ To produce 100 MyEvent messages
 
 ```shell
 # ./bin/runKryoProducer.sh --bootstrap.servers localhost:9092 --topic my-event-topic  --messages 100 --delay 1000 --messagetype myevent
@@ -84,9 +80,9 @@ If a key is present, a partition will be chosen using a hash of the key, else a 
 assigned in a round-robin fashion. But, Many times applications want to distribute the records
 based on their partition design. Available options for custom partitioning are
 
-**Option 1**: Pass optional partition number, while producing the records, using [ProducerRecord](https://kafka.apache.org/090/javadoc/org/apache/kafka/clients/producer/ProducerRecord.html) class.
+**Option 1**: Pass partition number, while producing the records, using [ProducerRecord](https://kafka.apache.org/090/javadoc/org/apache/kafka/clients/producer/ProducerRecord.html) class.
 
-Main Classes: BasicPartitionExample.java, SimpleProducer.java
+**Example Classes:** BasicPartitionExample.java, SimpleProducer.java
 
 This examples distributes the event numbered records to Partition 0 and odd numbered records to Partition 1.
 
@@ -113,9 +109,9 @@ Then run the Kafka console consumer script (or) **bin/runConsumer.sh** script to
 
 **Option 2**: Use "**partitioner.class**" config property to pass custom Partitioner class that implements the [Partitioner](https://kafka.apache.org/090/javadoc/org/apache/kafka/clients/producer/Partitioner.html) interface.
 
-Main Classes: CustomPartitioner.java, CustomPartitionerExample.java, SimpleProducer.java
+**Example Classes:** CustomPartitioner.java, CustomPartitionerExample.java, SimpleProducer.java
 
-This examples used CustomPartitioner to distribute the event numbered records to Partition 0 and odd numbered records to Partition 1.
+This examples uses CustomPartitioner to distribute the event numbered records to Partition 0 and odd numbered records to Partition 1.
 
 This examples distributes the event numbered records to Partition 0 and odd numbered records to Partition 1.
 
@@ -130,8 +126,8 @@ Then run the Kafka console consumer script (or) **bin/runConsumer.sh** script to
 ```shell
 #. /bin/runConsumer.sh --bootstrap.servers localhost:9092 --topic test-partition
 ```
-
-Change logger level for enable debug logs : src/main/resources/log4j.properties
+####Troubleshooting
+Change logger level to enable debug logs : producer/src/main/resources/log4j.properties
 
 
 
