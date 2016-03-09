@@ -61,7 +61,7 @@ This examples shows serailization using [Kryo Serialization Framework](https://g
  # ./bin/runKryoProducer.sh --bootstrap.servers localhost:9092 --topic my-topic  --messages 100 --delay 1000 
  ```
 
- To produce 100 MyEvent messages
+To produce 100 MyEvent messages
 
 ```shell
 # ./bin/runKryoProducer.sh --bootstrap.servers localhost:9092 --topic my-event-topic  --messages 100 --delay 1000 --messagetype myevent
@@ -86,14 +86,14 @@ based on their partition design. Available options for custom partitioning are
 
 This examples distributes the event numbered records to Partition 0 and odd numbered records to Partition 1.
 
-crate a topic with two partitions
+create a topic with two partitions
 
  ```shell
 # cd kafkaHome/bin
 #sh kafka-topics.sh --create --zookeeper localhost:2181 --replication-factor 1  --partitions 1 --topic test-partition
  ```
 
-run producer with basic partitioning
+To run producer with basic partitioning
 
  ```shell
 #./bin/runBasicPartitioner.sh --bootstrap.servers localhost:9092 --topic test-partition --messages 100 --delay 1000 
@@ -103,9 +103,7 @@ Then run the Kafka console consumer script (or) **bin/runConsumer.sh** script to
 
 ```shell
 #. /bin/runConsumer.sh --bootstrap.servers localhost:9092 --topic test-partition
-
 ```
-
 
 **Option 2**: Use "**partitioner.class**" config property to pass custom Partitioner class that implements the [Partitioner](https://kafka.apache.org/090/javadoc/org/apache/kafka/clients/producer/Partitioner.html) interface.
 
@@ -113,9 +111,7 @@ Then run the Kafka console consumer script (or) **bin/runConsumer.sh** script to
 
 This examples uses CustomPartitioner to distribute the event numbered records to Partition 0 and odd numbered records to Partition 1.
 
-This examples distributes the event numbered records to Partition 0 and odd numbered records to Partition 1.
-
-run producer with custom partitioner
+To run producer with custom partitioner
 
 ```shell
 #./bin/runCustomPartitioner.sh --bootstrap.servers localhost:9092 --topic test-partition --messages 100 --delay 1000 
