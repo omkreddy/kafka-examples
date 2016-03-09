@@ -1,6 +1,5 @@
 ###Apache Kafka Producer
-This project includes New Java Kafka producer examples.  
-Read [Javadocs](https://kafka.apache.org/090/javadoc/index.html?org/apache/kafka/clients/producer/KafkaProducer.html) for implementation details. Configuaration details are [here](http://kafka.apache.org/documentation.html#producerconfigs). Confluent's documentaion is 
+This project includes New Java Kafka producer examples. Read [Javadocs](https://kafka.apache.org/090/javadoc/index.html?org/apache/kafka/clients/producer/KafkaProducer.html) for implementation details. Configuaration details are [here](http://kafka.apache.org/documentation.html#producerconfigs). Confluent's documentaion is 
 [here](http://docs.confluent.io/2.0.1/clients/producer.html).
 
 ####Quick Start
@@ -23,15 +22,16 @@ $ mvn clean package
 ####Basic Producer Example
 This example is to demonstrate kafka producer functionality.
 
-**Example Classes:** SimpleProducer.java, BasicProducerExample.java, BasicConsumerExample.java, MyEvent.java              **bin/runProducer.sh** script can be used produce string messages (or) test events (MyEvent.java). 
+**Example Classes:** SimpleProducer.java, BasicProducerExample.java, BasicConsumerExample.java, MyEvent.java
+Use **bin/runProducer.sh** script to produce string messages (or) test event objects (MyEvent.java). 
  
- To produce 100 string messages
+To produce 100 string messages
 
  ```shell
  # ./bin/runProducer.sh --bootstrap.servers localhost:9092 --topic my-topic  --messages 100 --delay 1000 
  ```
 
- To produce 100 MyEvent messages
+To produce 100 MyEvent messages
 
 ```shell
 # ./bin/runProducer.sh --bootstrap.servers localhost:9092 --topic my-event-topic  --messages 100 --delay 1000 --messagetype myevent
@@ -53,7 +53,7 @@ Kafka Producer and Consumers allows applications to pass Custom Serializer and D
 This examples shows serailization using [Kryo Serialization Framework](https://github.com/EsotericSoftware/kryo)
 
 **Example Classes:** KryoSerializer.java, KryoDeserializer.java, KryoUtils.java, KryoProducerExample.java, KryoConsumerExample.java  
-**bin/runKryoProducer.sh** script can be used produce string messages (or) test events (MyEvent.java). 
+Use **bin/runKryoProducer.sh** script to produce string messages (or) test event objects (MyEvent.java). 
  
  To produce 100 string messages
 
@@ -77,14 +77,14 @@ Then run **bin/runKryoConsumer.sh** script to print the published messages.
 
 By default kafka producer uses DefaultPartitioner to distribute the records to available partitions.
 If a key is present, a partition will be chosen using a hash of the key, else a partition will be
-assigned in a round-robin fashion. But, Many times applications want to distribute the records
+assigned in a round-robin fashion. But, many times applications want to distribute the records
 based on their partition design. Available options for custom partitioning are
 
 **Option 1**: Pass partition number, while producing the records, using [ProducerRecord](https://kafka.apache.org/090/javadoc/org/apache/kafka/clients/producer/ProducerRecord.html) class.
 
 **Example Classes:** BasicPartitionExample.java, SimpleProducer.java
 
-This examples distributes the event numbered records to Partition 0 and odd numbered records to Partition 1.
+This examples distributes the even numbered records to Partition 0 and odd numbered records to Partition 1.
 
 create a topic with two partitions
 
@@ -109,7 +109,7 @@ Then run the Kafka console consumer script (or) **bin/runConsumer.sh** script to
 
 **Example Classes:** CustomPartitioner.java, CustomPartitionerExample.java, SimpleProducer.java
 
-This examples uses CustomPartitioner to distribute the event numbered records to Partition 0 and odd numbered records to Partition 1.
+This examples uses CustomPartitioner to distribute the even numbered records to Partition 0 and odd numbered records to Partition 1.
 
 To run producer with custom partitioner
 
