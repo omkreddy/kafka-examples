@@ -122,6 +122,12 @@ Then run the Kafka console consumer script (or) **bin/runConsumer.sh** script to
 ```shell
 #. /bin/runConsumer.sh --bootstrap.servers localhost:9092 --topic test-partition
 ```
+
+####Error Handling and Reliability Guarantees
+
+Check these slide decks for reliable producer settings: [here] (http://www.slideshare.net/jhols1/apache-kafka-reliability-guarantees-stratahadoop-nyc-2015?qid=2f75758d-01c5-4a02-9400-a7d93929bfa9&v=&b=&from_search=2) and  [here](http://www.slideshare.net/JiangjieQin/no-data-loss-pipeline-with-apache-kafka-49753844)
+
+
 ####Troubleshooting
 Change logger level to enable debug logs : producer/src/main/resources/log4j.properties
 
