@@ -59,7 +59,7 @@ public class KryoConsumerExample {
             while (true) {
                 ConsumerRecords<String, Object> records = consumer.poll(1000);
                 for (ConsumerRecord<String, Object> record : records) {
-                    System.out.printf("Received Message offset = %d, key = %s, value = %s\n", record.offset(), record.key(), record.value());
+                    System.out.printf("Received Message topic =%s, partition =%s, offset = %d, key = %s, value = %s\n", record.topic(), record.partition(), record.offset(), record.key(), record.value());
                 }
 
                 consumer.commitSync();

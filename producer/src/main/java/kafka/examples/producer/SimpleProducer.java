@@ -70,7 +70,7 @@ public class SimpleProducer<K extends Serializable, V extends Serializable> {
             if(partition < 0)
                 record = new ProducerRecord<>(topic, key, value);
             else
-                record = new ProducerRecord<>(topic,partition, key, value);
+                record = new ProducerRecord<>(topic, partition, key, value);
 
 
             Future<RecordMetadata> future = producer.send(record, callback);

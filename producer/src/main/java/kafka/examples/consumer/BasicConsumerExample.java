@@ -60,7 +60,7 @@ public class BasicConsumerExample {
             while (true) {
                 ConsumerRecords<byte[], byte[]> records = consumer.poll(1000);
                 for (ConsumerRecord<byte[], byte[]> record : records) {
-                    System.out.printf("Received Message offset = %d, key = %s, value = %s\n", record.offset(), deserialize(record.key()), deserialize(record.value()));
+                    System.out.printf("Received Message topic =%s, partition =%s, offset = %d, key = %s, value = %s\n", record.topic(), record.partition(), record.offset(), deserialize(record.key()), deserialize(record.value()));
                 }
 
                 consumer.commitSync();

@@ -18,8 +18,6 @@
 
 package kafka.examples.producer;
 
-import kafka.examples.producer.MyEvent;
-import kafka.examples.producer.SimpleProducer;
 import net.sourceforge.argparse4j.ArgumentParsers;
 import net.sourceforge.argparse4j.inf.ArgumentParser;
 import net.sourceforge.argparse4j.inf.ArgumentParserException;
@@ -32,7 +30,7 @@ import java.util.Properties;
 
 import static net.sourceforge.argparse4j.impl.Arguments.store;
 
-public class KryoProducerExample {
+public class CustomPartitionerExample {
 
     public static void main(String[] args) {
         ArgumentParser parser = argParser();
@@ -54,13 +52,14 @@ public class KryoProducerExample {
             producerConfig.put("client.id", "basic-producer");
             producerConfig.put("acks", "all");
             producerConfig.put("retries", "3");
-            producerConfig.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, "kafka.examples.kryo.serde.KryoSerializer");
-            producerConfig.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, "kafka.examples.kryo.serde.KryoSerializer");
+            producerConfig.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, "org.apache.kafka.common.serialization.ByteArraySerializer");
+            producerConfig.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, "org.apache.kafka.common.serialization.ByteArraySerializer");
+            producerConfig.put(ProducerConfig.PARTITIONER_CLASS_CONFIG, "kafka.examples.producer.CustomPartitioner");
 
-            SimpleProducer<String, Serializable> producer = new SimpleProducer<>(producerConfig, syncSend);
+            SimpleProducer<byte[], byte[]> producer = new SimpleProducer<>(producerConfig, syncSend);
 
             for (int i = 0; i < noOfMessages; i++) {
-                producer.send(topic, new Integer(i), getEvent(messageType, i));
+                producer.send(topic, getKey(i), getEvent(messageType, i));
                 try {
                     Thread.sleep(delay);
                 } catch (InterruptedException e) {
@@ -81,13 +80,21 @@ public class KryoProducerExample {
 
     }
 
-    private static Serializable getEvent(String messageType, int i) {
+    private static byte[] getEvent(String messageType, int i) {
         if ("string".equalsIgnoreCase(messageType))
-            return "message" + i;
+            return serialize("message" + i);
         else
-            return new MyEvent(i, "event" + i, "test", System.currentTimeMillis());
+            return serialize(new MyEvent(i, "event" + i, "test", System.currentTimeMillis()));
     }
 
+
+    private static byte[] getKey(int i) {
+        return serialize(new Integer(i));
+    }
+
+    public static byte[] serialize(final Object obj) {
+        return org.apache.commons.lang3.SerializationUtils.serialize((Serializable) obj);
+    }
 
     /**
      * Get the command-line argument parser.

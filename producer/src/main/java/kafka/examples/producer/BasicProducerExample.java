@@ -88,7 +88,7 @@ public class BasicProducerExample {
 
 
     private static byte[] getKey(int i) {
-        return serialize("key" + i);
+        return serialize(new Integer(i));
     }
 
     public static byte[] serialize(final Object obj) {
