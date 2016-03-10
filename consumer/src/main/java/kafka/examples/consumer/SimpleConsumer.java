@@ -1,3 +1,20 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * <p/>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p/>
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package kafka.examples.consumer;
 
 import static net.sourceforge.argparse4j.impl.Arguments.store;
@@ -24,11 +41,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * A simple consumer which reads data from the user-provided
- * topic partitions. Here no load re-balance / heart-beat performed.
+ * <p>This example demonstrates the usage of Simple Consumer where 
+ * user has to explicitly provide a list of {@link TopicPartition}
+ * and the offset from where to begin to the consumer.<p>
  * 
- * See {@link Consumer} for auto load balancing 
- * @author kamal
+ * <p>Consumer reads data only from the provided list of {@link TopicPartition}.
+ *  On failure, it does nothing. User has to take care of Fault-tolerance and 
+ *  committing the offset periodically<p>
  */
 public class SimpleConsumer implements Runnable {
 
@@ -68,8 +87,9 @@ public class SimpleConsumer implements Runnable {
 					logger.info("C : {}, Record received topic : {}, partition : {}, key : {}, value : {}, offset : {}", 
 							clientId, record.topic(), record.partition(), deserialize(record.key()), deserialize(record.value()),
 							record.offset());
-					sleep(100);
+					sleep(50);
 				}
+				// User have to commit offsets
 			}
 		} catch (Exception e) {
 			logger.error("Error while consuming messages", e);
@@ -109,16 +129,9 @@ public class SimpleConsumer implements Runnable {
 		
 		try {
 			Namespace result = parser.parseArgs(args);
-			
-			Properties configs = new Properties();
-			configs.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, result.getString("bootstrap.servers"));
-			configs.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, result.getString("auto.offset.reset"));
-			configs.put(ConsumerConfig.CLIENT_ID_CONFIG, result.getString("clientId"));
-			configs.put(ConsumerConfig.MAX_PARTITION_FETCH_BYTES_CONFIG, result.getString("max.partition.fetch.bytes"));
-			configs.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, ByteArrayDeserializer.class.getName());
-			configs.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, ByteArrayDeserializer.class.getName());
-			
+			Properties configs = getConsumerConfigs(result);
 			List<TopicPartition> partitions = getPartitions(result.getString("topic.partitions"));
+
 			consumer = new SimpleConsumer(configs, partitions);
 			consumer.run();
 			
@@ -132,6 +145,18 @@ public class SimpleConsumer implements Runnable {
 			if(consumer != null)
 				consumer.close();
 		}
+	}
+	
+	private static Properties getConsumerConfigs(Namespace result) {
+		Properties configs = new Properties();
+		configs.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, result.getString("bootstrap.servers"));
+		configs.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, result.getString("auto.offset.reset"));
+		configs.put(ConsumerConfig.CLIENT_ID_CONFIG, result.getString("clientId"));
+		configs.put(ConsumerConfig.MAX_PARTITION_FETCH_BYTES_CONFIG, result.getString("max.partition.fetch.bytes"));
+		
+		configs.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, ByteArrayDeserializer.class.getName());
+		configs.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, ByteArrayDeserializer.class.getName());
+		return configs;
 	}
 	
 	private static List<TopicPartition> getPartitions(String input) {
@@ -166,7 +191,7 @@ public class SimpleConsumer implements Runnable {
                 .help("consume messages from partitions. Comma separated list e.g. t1:0,t1:1,t2:0");
 
         parser.addArgument("--clientId").action(store())
-        		.required(false)
+        		.required(true)
         		.setDefault("my-consumer")
         		.type(String.class)
         		.help("client identifier");
@@ -180,7 +205,7 @@ public class SimpleConsumer implements Runnable {
         
         parser.addArgument("--max.partition.fetch.bytes").action(store())
         		.required(false)
-        		.setDefault("3000")
+        		.setDefault("1024")
         		.type(String.class)
         		.help("The maximum amount of data per-partition the server will return");
         

@@ -1,4 +1,4 @@
-package kafka.examples.consumer;
+package kafka.examples.consumer.advanced;
 
 import static net.sourceforge.argparse4j.impl.Arguments.store;
 
@@ -19,31 +19,44 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import kafka.examples.common.serialization.CustomDeserializer;
 import net.sourceforge.argparse4j.ArgumentParsers;
 import net.sourceforge.argparse4j.inf.ArgumentParser;
 import net.sourceforge.argparse4j.inf.ArgumentParserException;
 import net.sourceforge.argparse4j.inf.Namespace;
 
-import org.apache.commons.lang3.SerializationUtils;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRebalanceListener;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
+import org.apache.kafka.clients.consumer.internals.ConsumerCoordinator;
 import org.apache.kafka.common.TopicPartition;
-import org.apache.kafka.common.serialization.Deserializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class Consumer<K extends Serializable, V extends Serializable> implements Runnable {
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
-	private static final Logger logger = LoggerFactory.getLogger(Consumer.class);
+/**
+ * <p> This example demonstrates how {@link ConsumerCoordinator}
+ * manages to balance the load across consumer instances in a 
+ * group when there is a high delay in the processing time of messages<p>
+ * 
+ * <p> {@link HighLatencyConsumer} synchronously commits the offset after
+ * processing the messages. It's fault-tolerant, it manages to consume 
+ * messages as long as one consumer is alive in the group. <p>
+ * 
+ * @param <K> Type of message key
+ * @param <V> Type of message value
+ */
+public class HighLatencyConsumer<K extends Serializable, V extends Serializable> implements Runnable {
+
+	private static final Logger logger = LoggerFactory.getLogger(HighLatencyConsumer.class);
 	
 	private KafkaConsumer<K, V> consumer;
 	private final String clientId;
@@ -52,12 +65,12 @@ public class Consumer<K extends Serializable, V extends Serializable> implements
 	private AtomicBoolean closed = new AtomicBoolean();
 	private CountDownLatch shutdownLatch = new CountDownLatch(1);
 	
-	public Consumer(Properties configs, String clientId, List<String> topics) {
+	public HighLatencyConsumer(Properties configs, String clientId, List<String> topics) {
 
 		this.clientId = clientId;
 		this.topics = topics;
 		configs.put(ConsumerConfig.CLIENT_ID_CONFIG, clientId);
-		this.consumer = new KafkaConsumer<>(configs, new CustomDeserializer<K>(), new CustomDeserializer<V>());
+		this.consumer = new KafkaConsumer<>(configs);
 	}
 	
 	private void sleep(long millis) {
@@ -73,7 +86,7 @@ public class Consumer<K extends Serializable, V extends Serializable> implements
 	
 		logger.info("Starting consumer : {}", clientId);
 
-		ExecutorService executor = Executors.newSingleThreadExecutor(new CustomFactory(clientId + "_Processor"));
+		ExecutorService executor = Executors.newSingleThreadExecutor(new ThreadFactoryBuilder().setNameFormat(clientId + "_Processor").build());
 		final Map<TopicPartition, Long> partitionToUncommittedOffsetMap = new ConcurrentHashMap<>();
 		final List<Future<Boolean>> futures = new ArrayList<>();
 		
@@ -195,7 +208,7 @@ public class Consumer<K extends Serializable, V extends Serializable> implements
 			try {
 				for(ConsumerRecord<K, V> record : records) {
 					TopicPartition tp = new TopicPartition(record.topic(), record.partition());
-					logger.info("C : {}, Record received topicPartition : {} offset : {}", clientId, tp, record.offset());
+					logger.info("C : {}, Record received topicPartition : {}, offset : {}", clientId, tp, record.offset());
 					partitionToUncommittedOffsetMap.put(tp, record.offset());
 					Thread.sleep(100); // Adds more processing time for a record
 				}
@@ -208,42 +221,10 @@ public class Consumer<K extends Serializable, V extends Serializable> implements
 		}
 	}
 	
-	private static class CustomDeserializer<T extends Serializable> implements Deserializer<T> {
-		
-		@Override
-		public void configure(Map<String, ?> configs, boolean isKey) {
-		}
-
-		@SuppressWarnings("unchecked")
-		@Override
-		public T deserialize(String topic, byte[] objectData) {
-			return (objectData == null) ? null : (T) SerializationUtils.deserialize(objectData);
-		}
-
-		@Override
-		public void close() {
-		}
-	}
-	
-	private static class CustomFactory implements ThreadFactory {
-
-		private String threadPrefix;
-		private int counter = 0;
-		
-		public CustomFactory(String threadPrefix) {
-			this.threadPrefix = threadPrefix;
-		}
-		
-		@Override
-		public Thread newThread(Runnable r) {
-			return new Thread(r, threadPrefix + "-" + counter++);
-		}
-	}
-	
 	public static void main(String[] args) throws InterruptedException {
 		
 		ArgumentParser parser = argParser();
-		List<Consumer<String, Integer>> consumers = new ArrayList<>();
+		List<HighLatencyConsumer<String, Integer>> consumers = new ArrayList<>();
 		
 		try {
 			Namespace result = parser.parseArgs(args);
@@ -256,7 +237,7 @@ public class Consumer<K extends Serializable, V extends Serializable> implements
 
 			// Start consumers one by one after 20 seconds
 			for (int i=0; i<numConsumer; i++) {
-				Consumer<String, Integer> consumer = new Consumer<String, Integer>(configs, "Worker" + i, topics);
+				HighLatencyConsumer<String, Integer> consumer = new HighLatencyConsumer<>(configs, "Worker" + i, topics);
 				consumers.add(consumer);
 				executor.submit(consumer);
 				Thread.sleep(TimeUnit.SECONDS.toMillis(20));
@@ -265,7 +246,7 @@ public class Consumer<K extends Serializable, V extends Serializable> implements
 			Thread.sleep(TimeUnit.SECONDS.toMillis(60)); // let all the consumers run for a minute
 			
 			// Stop consumers one by one after 20 seconds
-			for (Consumer<String, Integer> consumer : consumers) {
+			for (HighLatencyConsumer<String, Integer> consumer : consumers) {
 				Thread.sleep(TimeUnit.SECONDS.toMillis(20));
 				consumer.close();
 			}
@@ -286,10 +267,13 @@ public class Consumer<K extends Serializable, V extends Serializable> implements
 	private static Properties getConsumerConfigs(Namespace result) {
 		Properties configs = new Properties();
 		configs.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, result.getString("bootstrap.servers"));
-		configs.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "false");
 		configs.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, result.getString("auto.offset.reset"));
 		configs.put(ConsumerConfig.GROUP_ID_CONFIG, result.getString("groupId"));
 		configs.put(ConsumerConfig.MAX_PARTITION_FETCH_BYTES_CONFIG, result.getString("max.partition.fetch.bytes"));
+		
+		configs.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "false");
+		configs.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, CustomDeserializer.class.getName());
+		configs.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, CustomDeserializer.class.getName());
 		return configs;
 	}
 	
