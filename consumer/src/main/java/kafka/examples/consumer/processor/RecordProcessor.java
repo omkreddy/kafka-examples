@@ -15,29 +15,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package kafka.examples.common.serialization;
+package kafka.examples.consumer.processor;
 
-import java.io.Serializable;
-import java.util.Map;
+import org.apache.kafka.clients.consumer.ConsumerRecords;
+import org.apache.kafka.clients.consumer.KafkaConsumer;
 
-import org.apache.commons.lang3.SerializationUtils;
-import org.apache.kafka.common.serialization.Serializer;
+public interface RecordProcessor<K, V> {
 
-public class CustomSerializer<T extends Serializable> implements Serializer<T> {
-
-	@Override
-	public void configure(Map<String, ?> configs, boolean isKey) {
-	}
-
-	@Override
-	public byte[] serialize(String topic, T data) {
-		return SerializationUtils.serialize(data);
-	}
-
-	@Override
-	public void close() {
-	}
-
+	boolean process(KafkaConsumer<K, V> consumer, ConsumerRecords<K, V> records) throws InterruptedException;
 }
 
 

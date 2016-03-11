@@ -19,26 +19,23 @@ package kafka.examples.consumer;
 
 import static net.sourceforge.argparse4j.impl.Arguments.store;
 
+import java.io.Serializable;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.List;
 import java.util.Properties;
 import java.util.concurrent.CountDownLatch;
 
+import kafka.examples.common.serialization.CustomDeserializer;
 import net.sourceforge.argparse4j.ArgumentParsers;
 import net.sourceforge.argparse4j.inf.ArgumentParser;
 import net.sourceforge.argparse4j.inf.ArgumentParserException;
 import net.sourceforge.argparse4j.inf.Namespace;
 
-import org.apache.commons.lang3.SerializationUtils;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
-import org.apache.kafka.clients.consumer.ConsumerRebalanceListener;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
-import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.errors.WakeupException;
-import org.apache.kafka.common.serialization.ByteArrayDeserializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -51,11 +48,11 @@ import org.slf4j.LoggerFactory;
  * to a same group and consumption load gets re-balanced across
  * the consumer instances.<p>
  */
-public class BasicConsumeLoop implements Runnable {
+public class BasicConsumeLoop<K extends Serializable, V extends Serializable> implements Runnable {
 
 	private static final Logger logger = LoggerFactory.getLogger(BasicConsumeLoop.class);
 
-	private final KafkaConsumer<byte[], byte[]> consumer;
+	private final KafkaConsumer<K, V> consumer;
 	private final List<String> topics;
 	private final String clientId;
 
@@ -72,32 +69,19 @@ public class BasicConsumeLoop implements Runnable {
 
 		try {
 			logger.info("Starting the Consumer : {}", clientId);
-			ConsumerRebalanceListener listener = new ConsumerRebalanceListener() {
-				
-				@Override
-				public void onPartitionsRevoked(Collection<TopicPartition> partitions) {
-					logger.info("C : {}, Revoked partitions : {}", clientId, partitions);
-				}
-				
-				@Override
-				public void onPartitionsAssigned(Collection<TopicPartition> partitions) {
-					logger.info("C : {}, Subscribed to partitions : {}", clientId, partitions);
-				}
-			};
-			consumer.subscribe(topics, listener);
+			consumer.subscribe(topics);
 
 			while(true) {
-				ConsumerRecords<byte[], byte[]> records = consumer.poll(Long.MAX_VALUE);
+				ConsumerRecords<K, V> records = consumer.poll(Long.MAX_VALUE);
 				
 				if(records.isEmpty()) {
-					logger.info("C : {}, Found no records. Sleeping for a while", clientId);
-					sleep(500);
+					logger.info("C : {}, Found no records", clientId);
 					continue;
 				}
 				
-				for (ConsumerRecord<byte[], byte[]> record : records) {
+				for (ConsumerRecord<K, V> record : records) {
 					logger.info("C : {}, Record received partition : {}, key : {}, value : {}, offset : {}",
-							clientId, record.partition(), deserialize(record.key()), deserialize(record.value()), record.offset());
+							clientId, record.partition(), record.key(), record.value(), record.offset());
 					sleep(50);
 				}
 			}
@@ -118,11 +102,6 @@ public class BasicConsumeLoop implements Runnable {
 		}
 	}
 	
-	@SuppressWarnings("unchecked")
-	private <V> V deserialize(byte[] objectData) {
-		return (V) SerializationUtils.deserialize(objectData);
-	}
-	
 	public void close() {
 		try {
 			consumer.wakeup();
@@ -141,7 +120,7 @@ public class BasicConsumeLoop implements Runnable {
 			List<String> topics = Arrays.asList(result.getString("topics").split(","));
 			Properties configs = getConsumerConfigs(result);
 
-			final BasicConsumeLoop consumer = new BasicConsumeLoop(configs, topics);
+			final BasicConsumeLoop<Serializable, Serializable> consumer = new BasicConsumeLoop<>(configs, topics);
 			consumer.run();
 			
 			Runtime.getRuntime().addShutdownHook(new Thread(new Runnable() {
@@ -170,8 +149,8 @@ public class BasicConsumeLoop implements Runnable {
 		configs.put(ConsumerConfig.MAX_PARTITION_FETCH_BYTES_CONFIG, result.getString("max.partition.fetch.bytes"));
 
 		configs.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "true");
-		configs.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, ByteArrayDeserializer.class.getName());
-		configs.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, ByteArrayDeserializer.class.getName());
+		configs.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, CustomDeserializer.class.getName());
+		configs.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, CustomDeserializer.class.getName());
 		return configs;
 	}
 

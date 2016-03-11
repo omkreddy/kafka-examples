@@ -19,24 +19,24 @@ package kafka.examples.consumer;
 
 import static net.sourceforge.argparse4j.impl.Arguments.store;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import kafka.examples.common.serialization.CustomDeserializer;
 import net.sourceforge.argparse4j.ArgumentParsers;
 import net.sourceforge.argparse4j.inf.ArgumentParser;
 import net.sourceforge.argparse4j.inf.ArgumentParserException;
 import net.sourceforge.argparse4j.inf.Namespace;
 
-import org.apache.commons.lang3.SerializationUtils;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.common.TopicPartition;
-import org.apache.kafka.common.serialization.ByteArrayDeserializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -49,12 +49,12 @@ import org.slf4j.LoggerFactory;
  *  On failure, it does nothing. User has to take care of Fault-tolerance and 
  *  committing the offset periodically<p>
  */
-public class SimpleConsumer implements Runnable {
+public class SimpleConsumer<K extends Serializable, V extends Serializable> implements Runnable {
 
 	private static final Logger logger = LoggerFactory.getLogger(SimpleConsumer.class);
 
 	private String clientId;
-	private KafkaConsumer<byte[], byte[]> consumer;
+	private KafkaConsumer<K, V> consumer;
 	private List<TopicPartition> partitions;
 	
 	private AtomicBoolean closed = new AtomicBoolean();
@@ -71,25 +71,26 @@ public class SimpleConsumer implements Runnable {
 
 		try {
 			consumer.assign(partitions);
+			// consumer.seek(partition, offset); // User has to load the initial offset
+			
 			logger.info("C : {}, Started to process records for partitions : {}", clientId, partitions);
 			
 			while(!closed.get()) {
 			
-				ConsumerRecords<byte[], byte[]> records = consumer.poll(1000);
+				ConsumerRecords<K, V> records = consumer.poll(1000);
 				
 				if(records.isEmpty()) {
-					logger.info("C : {}, Found no records. Sleeping for a while", clientId);
-					sleep(500);
+					logger.info("C : {}, Found no records", clientId);
 					continue;
 				}
 				
-				for (ConsumerRecord<byte[], byte[]> record : records) {
+				for (ConsumerRecord<K, V> record : records) {
 					logger.info("C : {}, Record received topic : {}, partition : {}, key : {}, value : {}, offset : {}", 
-							clientId, record.topic(), record.partition(), deserialize(record.key()), deserialize(record.value()),
+							clientId, record.topic(), record.partition(), record.key(), record.value(),
 							record.offset());
-					sleep(50);
+					Thread.sleep(50);
 				}
-				// User have to commit offsets
+				// User has to take care of committing the offsets
 			}
 		} catch (Exception e) {
 			logger.error("Error while consuming messages", e);
@@ -109,30 +110,17 @@ public class SimpleConsumer implements Runnable {
 		logger.info("C : {}, consumer exited", clientId);
 	}
 	
-	private void sleep(long millis) {
-		try {
-			Thread.sleep(millis);
-		} catch (InterruptedException e) {
-			logger.error("Error", e);
-		}
-	}
-	
-	@SuppressWarnings("unchecked")
-	private <V> V deserialize(byte[] objectData) {
-		return (V) SerializationUtils.deserialize(objectData);
-	}
-	
 	public static void main(String[] args) {
 		
 		ArgumentParser parser = argParser();
-		SimpleConsumer consumer = null;
+		SimpleConsumer<Serializable, Serializable> consumer = null;
 		
 		try {
 			Namespace result = parser.parseArgs(args);
 			Properties configs = getConsumerConfigs(result);
 			List<TopicPartition> partitions = getPartitions(result.getString("topic.partitions"));
 
-			consumer = new SimpleConsumer(configs, partitions);
+			consumer = new SimpleConsumer<>(configs, partitions);
 			consumer.run();
 			
 		} catch (ArgumentParserException e) {
@@ -154,8 +142,8 @@ public class SimpleConsumer implements Runnable {
 		configs.put(ConsumerConfig.CLIENT_ID_CONFIG, result.getString("clientId"));
 		configs.put(ConsumerConfig.MAX_PARTITION_FETCH_BYTES_CONFIG, result.getString("max.partition.fetch.bytes"));
 		
-		configs.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, ByteArrayDeserializer.class.getName());
-		configs.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, ByteArrayDeserializer.class.getName());
+		configs.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, CustomDeserializer.class.getName());
+		configs.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, CustomDeserializer.class.getName());
 		return configs;
 	}
 	

@@ -1,3 +1,20 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * <p/>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p/>
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package kafka.examples.consumer.advanced;
 
 import static net.sourceforge.argparse4j.impl.Arguments.store;
@@ -41,22 +58,21 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
-
 /**
  * <p> This example demonstrates how {@link ConsumerCoordinator}
  * manages to balance the load across consumer instances in a 
- * group when there is a high delay in the processing time of messages<p>
+ * group when there is a high delay in the processing time of messages.<p>
  * 
- * <p> {@link HighLatencyConsumer} synchronously commits the offset after
+ * <p> {@link AdvancedConsumer} synchronously commits the offset after
  * processing the messages. It's fault-tolerant, it manages to consume 
- * messages as long as one consumer is alive in the group. <p>
+ * messages as long as one consumer in the group is alive.<p>
  * 
  * @param <K> Type of message key
  * @param <V> Type of message value
  */
-public class HighLatencyConsumer<K extends Serializable, V extends Serializable> implements Runnable {
+public class AdvancedConsumer<K extends Serializable, V extends Serializable> implements Runnable {
 
-	private static final Logger logger = LoggerFactory.getLogger(HighLatencyConsumer.class);
+	private static final Logger logger = LoggerFactory.getLogger(AdvancedConsumer.class);
 	
 	private KafkaConsumer<K, V> consumer;
 	private final String clientId;
@@ -65,20 +81,12 @@ public class HighLatencyConsumer<K extends Serializable, V extends Serializable>
 	private AtomicBoolean closed = new AtomicBoolean();
 	private CountDownLatch shutdownLatch = new CountDownLatch(1);
 	
-	public HighLatencyConsumer(Properties configs, String clientId, List<String> topics) {
+	public AdvancedConsumer(Properties configs, String clientId, List<String> topics) {
 
 		this.clientId = clientId;
 		this.topics = topics;
 		configs.put(ConsumerConfig.CLIENT_ID_CONFIG, clientId);
 		this.consumer = new KafkaConsumer<>(configs);
-	}
-	
-	private void sleep(long millis) {
-		try {
-			Thread.sleep(millis);
-		} catch (InterruptedException e) {
-			logger.error("C : {}, Error", e);
-		}
 	}
 	
 	@Override
@@ -121,9 +129,8 @@ public class HighLatencyConsumer<K extends Serializable, V extends Serializable>
 			
 			ConsumerRecords<K, V> records = consumer.poll(1000);
 			
-			if(records == null || records.isEmpty()) {
-				logger.info("C: {}, Found no records, Sleeping for a while", clientId);
-				sleep(500);
+			if(records.isEmpty()) {
+				logger.info("C : {}, Found no records", clientId);
 				continue;
 			}
 			
@@ -204,13 +211,13 @@ public class HighLatencyConsumer<K extends Serializable, V extends Serializable>
 		@Override
 		public Boolean call() {
 
-			logger.info("C: {}, Number of records received : {}", clientId, records.count());
+			logger.info("C : {}, Number of records received : {}", clientId, records.count());
 			try {
 				for(ConsumerRecord<K, V> record : records) {
 					TopicPartition tp = new TopicPartition(record.topic(), record.partition());
 					logger.info("C : {}, Record received topicPartition : {}, offset : {}", clientId, tp, record.offset());
 					partitionToUncommittedOffsetMap.put(tp, record.offset());
-					Thread.sleep(100); // Adds more processing time for a record
+					Thread.sleep(1000); // Adds more processing time for a record
 				}
 			} catch (InterruptedException e) {
 				logger.info("C : {}, Record consumption interrupted!", clientId);
@@ -224,7 +231,7 @@ public class HighLatencyConsumer<K extends Serializable, V extends Serializable>
 	public static void main(String[] args) throws InterruptedException {
 		
 		ArgumentParser parser = argParser();
-		List<HighLatencyConsumer<String, Integer>> consumers = new ArrayList<>();
+		List<AdvancedConsumer<Serializable, Serializable>> consumers = new ArrayList<>();
 		
 		try {
 			Namespace result = parser.parseArgs(args);
@@ -237,7 +244,7 @@ public class HighLatencyConsumer<K extends Serializable, V extends Serializable>
 
 			// Start consumers one by one after 20 seconds
 			for (int i=0; i<numConsumer; i++) {
-				HighLatencyConsumer<String, Integer> consumer = new HighLatencyConsumer<>(configs, "Worker" + i, topics);
+				AdvancedConsumer<Serializable, Serializable> consumer = new AdvancedConsumer<>(configs, "Worker" + i, topics);
 				consumers.add(consumer);
 				executor.submit(consumer);
 				Thread.sleep(TimeUnit.SECONDS.toMillis(20));
@@ -246,7 +253,7 @@ public class HighLatencyConsumer<K extends Serializable, V extends Serializable>
 			Thread.sleep(TimeUnit.SECONDS.toMillis(60)); // let all the consumers run for a minute
 			
 			// Stop consumers one by one after 20 seconds
-			for (HighLatencyConsumer<String, Integer> consumer : consumers) {
+			for (AdvancedConsumer<Serializable, Serializable> consumer : consumers) {
 				Thread.sleep(TimeUnit.SECONDS.toMillis(20));
 				consumer.close();
 			}
@@ -315,7 +322,7 @@ public class HighLatencyConsumer<K extends Serializable, V extends Serializable>
         
         parser.addArgument("--max.partition.fetch.bytes").action(store())
         		.required(false)
-        		.setDefault("3000")
+        		.setDefault("3072")
         		.type(String.class)
         		.help("The maximum amount of data per-partition the server will return");
         
