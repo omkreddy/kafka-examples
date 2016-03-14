@@ -23,6 +23,7 @@ import org.apache.kafka.clients.consumer.KafkaConsumer;
 public interface RecordProcessor<K, V> {
 
 	boolean process(KafkaConsumer<K, V> consumer, ConsumerRecords<K, V> records) throws InterruptedException;
+	boolean commit(KafkaConsumer<K, V> consumer);
 }
 
 

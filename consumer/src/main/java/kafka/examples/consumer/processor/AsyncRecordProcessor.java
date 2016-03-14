@@ -59,11 +59,17 @@ public class AsyncRecordProcessor<K, V> implements RecordProcessor<K, V> {
 			
 			// commit offset of processed messages after specified interval
 			if((System.currentTimeMillis() - lastCommitTimeInMs) > 1000) {
-				commitOffsets(consumer);
+				commit(consumer);
 				lastCommitTimeInMs = System.currentTimeMillis();
 			}
 		}
-		commitOffsets(consumer); // [OR] consumer.commitAsync(callback);
+		commit(consumer); // [OR] consumer.commitAsync(callback);
+		return true;
+	}
+	
+	@Override
+	public boolean commit(KafkaConsumer<K, V> consumer) {
+		commitOffsets(consumer);
 		return true;
 	}
 
@@ -100,6 +106,7 @@ public class AsyncRecordProcessor<K, V> implements RecordProcessor<K, V> {
 			}
 		}
 	}
+
 }
 
 

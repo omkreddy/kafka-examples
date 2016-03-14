@@ -21,6 +21,7 @@ import static net.sourceforge.argparse4j.impl.Arguments.store;
 
 import java.io.Serializable;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Properties;
 import java.util.concurrent.CountDownLatch;
@@ -32,9 +33,11 @@ import net.sourceforge.argparse4j.inf.ArgumentParserException;
 import net.sourceforge.argparse4j.inf.Namespace;
 
 import org.apache.kafka.clients.consumer.ConsumerConfig;
+import org.apache.kafka.clients.consumer.ConsumerRebalanceListener;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
+import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.errors.WakeupException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -69,8 +72,21 @@ public class BasicConsumeLoop<K extends Serializable, V extends Serializable> im
 
 		try {
 			logger.info("Starting the Consumer : {}", clientId);
-			consumer.subscribe(topics);
 
+			ConsumerRebalanceListener listener = new ConsumerRebalanceListener() {
+				@Override
+				public void onPartitionsRevoked(Collection<TopicPartition> partitions) {
+					logger.info("C : {}, Revoked partitionns : {}", clientId, partitions);
+				}
+				
+				@Override
+				public void onPartitionsAssigned(Collection<TopicPartition> partitions) {
+					logger.info("C : {}, Assigned partitions : {}", clientId, partitions);
+				}
+			};
+			consumer.subscribe(topics, listener);
+
+			logger.info("C : {}, Started to process records", clientId);
 			while(true) {
 				ConsumerRecords<K, V> records = consumer.poll(Long.MAX_VALUE);
 				
@@ -78,12 +94,17 @@ public class BasicConsumeLoop<K extends Serializable, V extends Serializable> im
 					logger.info("C : {}, Found no records", clientId);
 					continue;
 				}
-				
+			
+				logger.info("C : {} Total No. of records received : {}", clientId, records.count());
 				for (ConsumerRecord<K, V> record : records) {
 					logger.info("C : {}, Record received partition : {}, key : {}, value : {}, offset : {}",
 							clientId, record.partition(), record.key(), record.value(), record.offset());
 					sleep(50);
 				}
+				
+				
+				// `enable.auto.commit` set to true. coordinator automatically commits the offsets
+				// returned on the last poll(long) for all the subscribed list of topics and partitions
 			}
 		} catch (WakeupException e) {
 			// Ignore, we're closing

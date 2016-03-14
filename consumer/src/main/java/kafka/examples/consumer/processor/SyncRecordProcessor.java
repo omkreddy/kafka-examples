@@ -57,13 +57,19 @@ public class SyncRecordProcessor<K, V> implements RecordProcessor<K, V> {
 			
 			// commit offset of processed messages
 			if((System.currentTimeMillis() - lastCommitTimeInMs) > 1000) {
-				commitOffsets(consumer);
+				commit(consumer);
 				lastCommitTimeInMs = System.currentTimeMillis();
 			}
 		}
-		commitOffsets(consumer); // [OR] consumer.commitSync();
+		commit(consumer); // [OR] consumer.commitSync();
 		return true;
-	} 
+	}
+	
+	@Override
+	public boolean commit(KafkaConsumer<K, V> consumer) {
+		commitOffsets(consumer);
+		return true;
+	}
 
 	private void commitOffsets(KafkaConsumer<K, V> consumer) {
 		
