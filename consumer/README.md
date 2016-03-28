@@ -69,3 +69,25 @@ Run below script to read the published messages from given partitions.
 ```shell
 # sh bin/runSimpleConsumer.sh  --bootstrap.servers localhost:9092 --topic.partitions TEST-TOPIC:0 --clientId client1 //consume from Partition 0
 ```
+####Advanced Consumer
+
+The new consumer API is centered around the poll() method which is used to
+retrieve records from the brokers. So we normally code using poll loop to collect, process
+messages and to commit offsets. Poll loop is also used for heart-beat mechanism. High message
+procesing delays may create unwanted consumer rebalances. Some of these problems are discussed [here.]
+(http://users.kafka.apache.narkive.com/4vvhuBZO/low-latency-high-message-size-variance)
+
+This example demonstrates sample implementation with ExecutorService for processing and Pause/Resume API.
+
+AdvancedConsumer synchronously commits the offset after processing the messages.
+It's fault-tolerant, it manages to consume messages as long as one consumer in the group 
+is alive.
+
+
+**Example Classes:**  AdvancedConsumer.java
+
+Run below script to run the AdvancedConsumer example.
+
+```shell
+sh bin/runAdvancedConsumer.sh --bootstrap.servers localhost:9092 --topics TEST-TOPIC  --numConsumer 3 --groupId group1
+```
