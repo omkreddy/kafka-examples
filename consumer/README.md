@@ -53,3 +53,19 @@ We can list all the consumer groups using kafka-consumer-groups.sh
 # cd kafkaHome/bin
 # sh kafka-consumer-groups.sh  --bootstrap-server localhost:9092 --list  --new-consumer
 ```
+####Subscribing To Specific Partitions
+This example demonstrates the usage of Simple Consumer where user has to explicitly
+provide a list of TopicPartition. Manually specify the partitions that are assigned 
+to it through assign(List), which disables this dynamic partition assignment.
+
+Consumer reads data only from the provided list of {@link TopicPartition}. On failure, 
+it does nothing. User has to take care of Fault-tolerance and committing the offset 
+periodically
+
+**Example Classes:**  SimpleConsumer.java
+
+Run below script to read the published messages from given partitions.
+
+```shell
+# sh bin/runSimpleConsumer.sh  --bootstrap.servers localhost:9092 --topic.partitions TEST-TOPIC:0 --clientId client1 //consume from Partition 0
+```
