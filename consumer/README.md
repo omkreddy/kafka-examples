@@ -72,8 +72,8 @@ Run below script to read the published messages from given partitions.
 ####Advanced Consumer
 
 The new consumer API is centered around the poll() method which is used to
-retrieve records from the brokers. So we normally code using poll loop to collect, process
-messages and to commit offsets. Poll loop is also used for heart-beat mechanism. High message
+retrieve records from the brokers. We normally code using poll loop to collect, process
+messages and to commit offsets. Poll loop is also used for heart-beat mechanism. Some times high message
 procesing delays may create unwanted consumer rebalances. Some of these problems are discussed [here.]
 (http://users.kafka.apache.narkive.com/4vvhuBZO/low-latency-high-message-size-variance)
 
