@@ -185,7 +185,6 @@ public class SimpleConsumer<K extends Serializable, V extends Serializable> impl
 
         parser.addArgument("--clientId").action(store())
         		.required(true)
-        		.setDefault("my-consumer")
         		.type(String.class)
         		.help("client identifier");
         
