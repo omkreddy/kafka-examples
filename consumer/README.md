@@ -53,7 +53,7 @@ We can list all the consumer groups using kafka-consumer-groups.sh
 # cd kafkaHome/bin
 # sh kafka-consumer-groups.sh  --bootstrap-server localhost:9092 --list  --new-consumer
 ```
-####Subscribing To Specific Partitions
+####Manual Partition Assignment
 This example demonstrates the usage of Simple Consumer where user has to explicitly
 provide a list of TopicPartition. Manually specify the partitions that are assigned 
 to it through assign(List), which disables this dynamic partition assignment.
