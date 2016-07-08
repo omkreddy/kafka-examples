@@ -116,8 +116,8 @@ public class AdvancedConsumer<K extends Serializable, V extends Serializable> im
 					long startOffset = offsetAndMetaData != null ? offsetAndMetaData.offset() : -1L;
 					logger.info("C : {}, Assigned topicPartion : {} offset : {}", clientId, tp, startOffset);
 
-					if(startOffset >= 0)
-						consumer.seek(tp, startOffset);
+					/*if(startOffset >= 0)
+						consumer.seek(tp, startOffset);*/
 				}
 			}
 		};
