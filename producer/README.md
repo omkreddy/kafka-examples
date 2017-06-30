@@ -1,8 +1,7 @@
-###Apache Kafka Producer
-This project includes New Java Kafka producer examples. Read [Javadocs](https://kafka.apache.org/090/javadoc/index.html?org/apache/kafka/clients/producer/KafkaProducer.html) for implementation details. Configuaration details are [here](http://kafka.apache.org/documentation.html#producerconfigs). Confluent's documentaion is 
-[here](http://docs.confluent.io/2.0.1/clients/producer.html).
+### Apache Kafka Producer
+This project includes New Java Kafka producer examples. Read [Javadocs](http://kafka.apache.org/0110/javadoc/index.html?org/apache/kafka/clients/producer/KafkaProducer.html) for implementation details. Configuaration details are [here](http://kafka.apache.org/documentation.html#producerconfigs). 
 
-####Quick Start
+#### Quick Start
 Before running the below examples, make sure that Zookeeper and Kafka are running.
 
 ```shell
@@ -11,7 +10,7 @@ $ sh zookeeper-server-start.sh ../config/zookeeper.properties
 # start kafka
 $ sh kafka-server-start.sh  ../config/server.properties
 ```
-####Build Examples
+#### Build Examples
 
 ```shell
 # checkout kafka-examples repo
@@ -19,10 +18,11 @@ $ cd kafka-examples/producer/
 $ mvn clean package
 ```
 
-####Basic Producer Example
+#### Basic Producer Example
 This example is to demonstrate kafka producer functionality.
 
-**Example Classes:** SimpleProducer.java, BasicProducerExample.java, BasicConsumerExample.java, MyEvent.java
+**Example Classes:** SimpleProducer.java, BasicProducerExample.java, BasicConsumerExample.java, MyEvent.java.
+
 Use **bin/runProducer.sh** script to produce string messages (or) test event objects (MyEvent.java). 
  
 To produce 100 string messages
@@ -44,15 +44,16 @@ Then run the Kafka console consumer script (or) **bin/runConsumer.sh** script to
 # ./bin/runConsumer.sh --bootstrap.servers localhost:9092 --topic my-event-topic
 ```
 
-####Custom Serialization Examples
+#### Custom Serialization Examples
 Kafka Producer and Consumers allows applications to pass Custom Serializer and Deserializer implementations.
-**key.serializer**, **value.serializer** config properties are used to pass custom serializer for Producer.  
+**key.serializer**, **value.serializer** config properties are used to pass custom serializer for Producer.
 **key.deserializer**, **value.deserializer** config properties are used to pass custom deserializer for Consumer.
 
 ##### Kryo Serializer
 This examples shows serailization using [Kryo Serialization Framework](https://github.com/EsotericSoftware/kryo)
 
-**Example Classes:** KryoSerializer.java, KryoDeserializer.java, KryoUtils.java, KryoProducerExample.java, KryoConsumerExample.java  
+**Example Classes:** KryoSerializer.java, KryoDeserializer.java, KryoUtils.java, KryoProducerExample.java, KryoConsumerExample.java 
+
 Use **bin/runKryoProducer.sh** script to produce string messages (or) test event objects (MyEvent.java). 
  
  To produce 100 string messages
@@ -73,7 +74,7 @@ Then run **bin/runKryoConsumer.sh** script to print the published messages.
 #. /bin/runKryoConsumer.sh --bootstrap.servers localhost:9092 --topic my-topic
 # ./bin/runKryoConsumer.sh --bootstrap.servers localhost:9092 --topic my-event-topic
 ```
-####Custom Partitioning: 
+#### Custom Partitioning: 
 
 By default kafka producer uses DefaultPartitioner to distribute the records to available partitions.
 If a key is present, a partition will be chosen using a hash of the key, else a partition will be
@@ -123,12 +124,12 @@ Then run the Kafka console consumer script (or) **bin/runConsumer.sh** script to
 #. /bin/runConsumer.sh --bootstrap.servers localhost:9092 --topic test-partition
 ```
 
-####Error Handling and Reliability Guarantees
+#### Error Handling and Reliability Guarantees
 
 Check these slide decks for reliable producer settings: [here] (http://www.slideshare.net/jhols1/apache-kafka-reliability-guarantees-stratahadoop-nyc-2015?qid=2f75758d-01c5-4a02-9400-a7d93929bfa9&v=&b=&from_search=2) and  [here](http://www.slideshare.net/JiangjieQin/no-data-loss-pipeline-with-apache-kafka-49753844)
 
 
-####Troubleshooting
+#### Troubleshooting
 Change logger level to enable debug logs : producer/src/main/resources/log4j.properties
 
 

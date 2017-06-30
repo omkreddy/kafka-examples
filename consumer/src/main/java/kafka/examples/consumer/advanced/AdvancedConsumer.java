@@ -139,7 +139,7 @@ public class AdvancedConsumer<K extends Serializable, V extends Serializable> im
 			 * to avoid the consumer instance gets kicked-out from the group by the consumer coordinator
 			 * due to the delay in the processing of messages
 			 */
-			consumer.pause(consumer.assignment().toArray(new TopicPartition[0]));
+			consumer.pause(consumer.assignment());
 			Future<Boolean> future = executor.submit(new ConsumeRecords(records, partitionToUncommittedOffsetMap));
 			futures.add(future);
 			
@@ -160,7 +160,7 @@ public class AdvancedConsumer<K extends Serializable, V extends Serializable> im
 				}
 			}
 			futures.remove(future);
-			consumer.resume(consumer.assignment().toArray(new TopicPartition[0]));
+			consumer.resume(consumer.assignment());
 			commitOffsets(partitionToUncommittedOffsetMap);
 		}
 		

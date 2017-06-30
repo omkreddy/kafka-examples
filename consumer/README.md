@@ -1,10 +1,9 @@
-###Apache Kafka Consumer
-This project includes New Java Kafka consumer examples.
+### Apache Kafka Consumer
+This project includes Java Kafka consumer examples.
 
-Read [Javadocs](http://kafka.apache.org/090/javadoc/index.html?org/apache/kafka/clients/consumer/KafkaConsumer.html) for implementation details. Configuaration details are [here](https://kafka.apache.org/documentation.html#newconsumerconfigs). Confluent's documentaion is 
-[here](http://docs.confluent.io/2.0.1/clients/consumer.html).
+Read [Javadocs](http://kafka.apache.org/0110/javadoc/index.html?org/apache/kafka/clients/consumer/KafkaConsumer.html) for implementation details. Configuaration details are [here](https://kafka.apache.org/documentation.html#newconsumerconfigs). 
 
-####Quick Start
+#### Quick Start
 Before running the below examples, make sure that Zookeeper and Kafka are running.
 
 ```shell
@@ -14,14 +13,14 @@ $ sh zookeeper-server-start.sh ../config/zookeeper.properties
 # start kafka
 $ sh kafka-server-start.sh  ../config/server.properties
 ```
-####Build
+#### Build
 
 ```shell
 # checkout kafka-examples repo
 $ cd kafka-examples/consumer/
 $ mvn clean package
 ```
-####Basic Consumer Example
+#### Basic Consumer Example
 This example demonstrates the usage of basic consumer poll loop and
 consumer coordination in a group
 
@@ -53,7 +52,7 @@ We can list all the consumer groups using kafka-consumer-groups.sh
 # cd kafkaHome/bin
 # sh kafka-consumer-groups.sh  --bootstrap-server localhost:9092 --list  --new-consumer
 ```
-####Manual Partition Assignment
+#### Manual Partition Assignment
 This example demonstrates the usage of Simple Consumer where user has to explicitly
 provide a list of TopicPartition. Manually specify the partitions that are assigned 
 to it through assign(List), which disables this dynamic partition assignment.
@@ -69,7 +68,7 @@ Run below script to read the published messages from given partitions.
 ```shell
 # sh bin/runSimpleConsumer.sh  --bootstrap.servers localhost:9092 --topic.partitions TEST-TOPIC:0 --clientId client1 //consume from Partition 0
 ```
-####Advanced Consumer
+#### Advanced Consumer
 
 The new consumer API is centered around the poll() method which is used to
 retrieve records from the brokers. This poll loop is used to collect, process
