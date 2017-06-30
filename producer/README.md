@@ -44,6 +44,15 @@ Then run the Kafka console consumer script (or) **bin/runConsumer.sh** script to
 # ./bin/runConsumer.sh --bootstrap.servers localhost:9092 --topic my-event-topic
 ```
 
+####  Transactional Producer
+ 
+To produce 100 MyEvent messages
+
+```shell
+# ./bin/runTransactionalProducer.sh --bootstrap.servers localhost:9092 --topic my-event-topic  --messages 100 --delay 1000 --messagetype myevent
+```
+
+
 #### Custom Serialization Examples
 Kafka Producer and Consumers allows applications to pass Custom Serializer and Deserializer implementations.
 **key.serializer**, **value.serializer** config properties are used to pass custom serializer for Producer.
